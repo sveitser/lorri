@@ -9,5 +9,6 @@ fn bug23_gopath() {
     testcase.evaluate().expect("Failed to build the first time");
 
     let env = testcase.get_direnv_variables();
-    assert_eq!(env.get_env("GOPATH"), DirenvValue::Value("my-neat-go-path:/bogus/bug-23/gopath"));
+    println!("{:#?}", env);
+    assert_eq!(env.get_env("GOPATH"), DirenvValue::Value("my-neat-go-path:/tmp/foo/bar"));
 }
