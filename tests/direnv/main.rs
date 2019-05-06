@@ -6,3 +6,4 @@ extern crate serde_derive;
 
 mod direnvtestcase;
 mod trivial;
+mod bug23_gopath;
