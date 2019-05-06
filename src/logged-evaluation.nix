@@ -49,6 +49,9 @@ let
     origPATH = drv.PATH or "";
     PATH = runtimeCfg.path;
 
+    origOutputs = drv.outputs or [];
+    outputs = [ "out" ];
+
     origArgs = drv.args or [];
     args = [ "-e" (builtins.toFile "lorri-keep-env-hack" ''
       # Export IN_NIX_SHELL to trick various Nix tooling to export
