@@ -58,6 +58,13 @@ let
 
       # https://github.com/NixOS/nix/blob/92d08c02c84be34ec0df56ed718526c382845d1a/src/nix-build/nix-build.cc#
       [ -e $stdenv/setup ] && . $stdenv/setup
+
+      # target/lorri#23
+      # https://github.com/NixOS/nix/blob/master/src/nix-build/nix-build.cc#L422
+      if [ "$(type -t runHook)" = function ]; then
+       runHook shellHook;
+      fi;
+
       export > $out
     '') ];
   });
