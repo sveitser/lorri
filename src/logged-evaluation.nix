@@ -55,6 +55,7 @@ let
     origArgs = drv.args or [];
     args = [ "-e" (builtins.toFile "lorri-keep-env-hack" ''
       mkdir -p "$out"
+      touch "$out/varmap"
 
       # Export IN_NIX_SHELL to trick various Nix tooling to export
       # shell-friendly variables
@@ -63,6 +64,14 @@ let
 
       # https://github.com/NixOS/nix/blob/92d08c02c84be34ec0df56ed718526c382845d1a/src/nix-build/nix-build.cc#
       [ -e $stdenv/setup ] && . $stdenv/setup
+
+      if declare -f addToSearchPathWithCustomDelimiter > /dev/null 2>&1 ; then
+        lorri_addToSearchPathWithCustomDelimiter="$(declare -f addToSearchPathWithCustomDelimiter  | head -n-1 | tail -n+3)"
+        addToSearchPathWithCustomDelimiter() {
+          printf 'append\t%s\t%s\n' "$2" "$1" >> "$out/varmap"
+          eval "$lorri_addToSearchPathWithCustomDelimiter"
+        }
+      fi
 
       # target/lorri#23
       # https://github.com/NixOS/nix/blob/master/src/nix-build/nix-build.cc#L422
