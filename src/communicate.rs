@@ -200,7 +200,7 @@ pub mod daemon {
         // TODO: this should probably be outside of this module
         // TODO: something needs to loop over accept
         pub fn accept<F: 'static>(
-            self,
+            &self,
             handler: F,
         ) -> Result<std::thread::JoinHandle<()>, AcceptError>
         where

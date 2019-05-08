@@ -10,17 +10,20 @@ use crate::communicate::{CommunicationType, NoMessage, Ping, ReadError, ReadWrit
 /// See the documentation for lorri::cli::Command::Shell for more
 /// details.
 pub fn main() -> OpResult {
-    // TODO: set up socket path, make it settable by the user
-    let handle = Daemon::new(Path::new("/tmp/lorri-socket"))
-        .unwrap()
-        .accept(|unix_stream, comm_type| match comm_type {
-            CommunicationType::Ping => ping(ReadWriter::new(unix_stream)),
-        })
+    let daemon = Daemon::new(Path::new("/tmp/lorri-socket"))
         .unwrap();
+    // TODO: set up socket path, make it settable by the user
+    loop {
+        let _handle =
+            daemon.accept(|unix_stream, comm_type| match comm_type {
+                CommunicationType::Ping => ping(ReadWriter::new(unix_stream)),
+            })
+            .unwrap();
+    }
 
-    handle.join().unwrap();
+    // TODO: collect all handles and join at the end
+    // handle.join().unwrap();
 
-    ok()
 }
 
 /// Handle the ping
