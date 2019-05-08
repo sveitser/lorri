@@ -26,28 +26,28 @@ pub fn main() -> OpResult {
         // TODO
         .unwrap();
     // TODO: set up socket path, make it settable by the user
-    let daemon = Daemon::new();
-
+    let mut daemon = Daemon::new();
+    let daemon_rx = daemon.build_events_rx.take().unwrap();
     let (tx, rx) = mpsc::channel();
 
     let _accept_loop_handle = thread::spawn(move || loop {
-        let tx2 = tx.clone();
+        let tx = tx.clone();
         let _handle = listener
             .accept(|unix_stream, comm_type| match comm_type {
-                CommunicationType::Ping => ping(ReadWriter::new(unix_stream), tx2),
+                CommunicationType::Ping => ping(ReadWriter::new(unix_stream), tx),
             })
             // TODO
             .unwrap();
     });
 
     let _start_build_loop_handle = thread::spawn(|| {
-        for start_build in rx {
-            daemon.start_build(start_build.nix_file)
+        for msg in daemon_rx {
+            println!("{:#?}", msg);
         }
     });
 
-    for msg in daemon.build_events_rx {
-        println!("{:#?}", msg);
+    for start_build in rx {
+        daemon.start_build(start_build.nix_file)
     }
 
     ok()
@@ -60,7 +60,7 @@ struct Daemon {
     // TODO: PathBuf is a nix file
     pub handlers: HashMap<PathBuf, std::thread::JoinHandle<()>>,
     pub build_events_tx: mpsc::Sender<build_loop::Event>,
-    pub build_events_rx: mpsc::Receiver<build_loop::Event>,
+    pub build_events_rx: Option<mpsc::Receiver<build_loop::Event>>,
 }
 
 impl Daemon {
@@ -68,7 +68,7 @@ impl Daemon {
         let (tx, rx) = mpsc::channel();
         Daemon {
             handlers: HashMap::new(),
-            build_events_rx: rx,
+            build_events_rx: Some(rx),
             build_events_tx: tx,
         }
     }
