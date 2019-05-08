@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{mpsc, Mutex};
 use std::thread;
+use std::fs;
 
 use std::path::Path;
 
@@ -22,9 +23,10 @@ struct StartBuild {
 /// See the documentation for lorri::cli::Command::Shell for more
 /// details.
 pub fn main() -> OpResult {
-    let listener = daemon::Daemon::new(Path::new("/tmp/lorri-socket"))
-        // TODO
-        .unwrap();
+    let socket = Path::new("/tmp/lorri-socket");
+    fs::remove_file(&socket);
+    let listener = daemon::Daemon::new(socket).unwrap();
+
     // TODO: set up socket path, make it settable by the user
     let mut daemon = Daemon::new();
     let daemon_rx = daemon.build_events_rx.take().unwrap();
