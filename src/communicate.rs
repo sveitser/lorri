@@ -5,6 +5,7 @@ extern crate bincode;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::os::unix::net::UnixStream;
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -19,16 +20,19 @@ pub struct ReadWriter<R, W> {
     phantom_w: PhantomData<W>,
 }
 
+#[derive(Debug)]
 pub enum ReadError {
     Deserialize(bincode::Error),
     Timeout,
 }
 
 // TODO: combine with ReadError?
+#[derive(Debug)]
 pub enum WriteError {
     Serialize(bincode::Error),
     Timeout,
 }
+#[derive(Debug)]
 pub enum ReadWriteError {
     R(ReadError),
     W(WriteError),
@@ -52,6 +56,7 @@ where
 
 impl<R, W> ReadWriter<R, W> {
     /// Create from a unix socket.
+    // TODO: &mut UnixStream
     pub fn new(socket: UnixStream) -> ReadWriter<R, W> {
         ReadWriter {
             socket: socket,
@@ -135,7 +140,7 @@ impl<R, W> ReadWriter<R, W> {
 
 /// Enum of all communication modes the lorri daemon supports.
 #[derive(Serialize, Deserialize)]
-enum CommunicationType {
+pub enum CommunicationType {
     /// Ping the daemon from a project to tell it to watch & evaluate
     Ping,
     // /// Listen for events on the daemon
@@ -144,8 +149,9 @@ enum CommunicationType {
     // DaemonStatus,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ping {
-    nix_file: String,
+    pub nix_file: PathBuf,
 }
 pub enum NoMessage {}
 // pub struct DaemonEvent {}
@@ -158,26 +164,29 @@ pub mod daemon {
     use std::time::Duration;
 
     /// The server only ever answers if a connection attempt was accepted.
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct ConnectionAccepted();
 
     /// Server-side part of a socket transmission,
     /// listening for incoming messages.
-    struct Daemon {
+    pub struct Daemon {
         listener: UnixListener,
         timeout: Timeout,
     }
 
-    enum AcceptError {
+    #[derive(Debug)]
+    pub enum AcceptError {
         // something went wrong in the `accept()` syscall
         Accept(std::io::Error),
-        Message(ReadError),
+        Message(ReadWriteError),
     }
 
-    struct BindError(std::io::Error);
+    #[derive(Debug)]
+    pub struct BindError(std::io::Error);
 
     impl Daemon {
-        fn new(socket_path: &Path) -> Result<Daemon, BindError> {
+        // TODO: remove socket file when done
+        pub fn new(socket_path: &Path) -> Result<Daemon, BindError> {
             Ok(Daemon {
                 listener: UnixListener::bind(socket_path).map_err(BindError)?,
                 // TODO: set some timeout?
@@ -190,30 +199,29 @@ pub mod daemon {
         /// corresponding handling subroutine.
         // TODO: this should probably be outside of this module
         // TODO: something needs to loop over accept
-        pub fn accept<F>(
+        pub fn accept<F: 'static>(
             self,
-            tx: mpsc::Sender<Ping>,
             handler: F,
         ) -> Result<std::thread::JoinHandle<()>, AcceptError>
         where
             F: FnOnce(UnixStream, CommunicationType) -> (),
-            F: std::marker::Send
+            F: std::marker::Send,
         {
             // - socket accept
-            let (unixStream, _) = self.listener.accept().map_err(AcceptError::Accept)?;
+            let (mut unix_stream, _) = self.listener.accept().map_err(AcceptError::Accept)?;
             // - read first message as a `CommunicationType`
-            let commType: CommunicationType = ReadWriter::<CommunicationType, NoMessage>::new(unixStream)
-                .read(self.timeout)
-                .map_err(AcceptError::Message)?;
+            // TODO: move to this
+            // let commType: CommunicationType = ReadWriter::<CommunicationType, ConnectionAccepted>::new(unixStream)
+            //     .react(self.timeout, |commType| -> ConnectionAccepted())
+            //     .map_err(AcceptError::Message)?;
+            let comm_type: CommunicationType = bincode::deserialize_from(&unix_stream)
+                .map_err(|e| AcceptError::Message(ReadWriteError::R(ReadError::Deserialize(e))))?;
+            bincode::serialize_into(&unix_stream, &ConnectionAccepted())
+                .map_err(|e| AcceptError::Message(ReadWriteError::W(WriteError::Serialize(e))))?;
+            unix_stream.flush().map_err(AcceptError::Accept)?;
             // spawn a thread with the accept handler
-            Ok(std::thread::spawn(move ||handler(unixStream, commType))
+            Ok(std::thread::spawn(move || handler(unix_stream, comm_type)))
         }
-    }
-
-    /// Handle the ping
-    // the ReadWriter here has to be the inverse of the `Client.ping()`, which is `ReadWriter<!, Ping>`
-    pub fn ping(rw: ReadWriter<Ping, NoMessage>) {
-        // tx.send(rw.read())
     }
 
     // pub fn daemonListener
@@ -234,11 +242,13 @@ pub mod client {
         timeout: Timeout,
     }
 
+    #[derive(Debug)]
     pub enum Error {
         NotConnected,
         Message(ReadWriteError),
     }
 
+    #[derive(Debug)]
     pub enum InitError {
         SocketConnect(std::io::Error),
         ServerHandshake(ReadWriteError),
@@ -260,13 +270,22 @@ pub mod client {
         pub fn connect(self, socket_path: &Path) -> Result<Client<R, W>, InitError> {
             // TODO: check if the file exists and is a socket
             // - connect to `socket_path`
-            let socket = UnixStream::connect(socket_path).map_err(InitError::SocketConnect)?;
+            let mut socket = UnixStream::connect(socket_path).map_err(InitError::SocketConnect)?;
             // - send initial message with the CommunicationType
             // - wait for server to acknowledge connect
-            let _: daemon::ConnectionAccepted = ReadWriter::new(socket)
-                .communicate(self.timeout, &self.comm_type)
-                .map_err(InitError::ServerHandshake)?;
-            Ok(self)
+            // TODO: use this
+            // let c: daemon::ConnectionAccepted = ReadWriter::new(socket)
+            //     .communicate(self.timeout, &self.comm_type)
+            //     .map_err(InitError::ServerHandshake)?;
+            bincode::serialize_into(&socket, &self.comm_type);
+            socket.flush().unwrap();
+            let _: daemon::ConnectionAccepted =
+                bincode::deserialize_from(&socket).expect("hurr durr");
+            Ok(Client {
+                comm_type: self.comm_type,
+                rw: Some(ReadWriter::new(socket)),
+                timeout: self.timeout,
+            })
         }
 
         // mirror the readwriter functions here

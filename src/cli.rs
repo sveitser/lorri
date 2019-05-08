@@ -42,9 +42,25 @@ pub enum Command {
     #[structopt(name = "watch")]
     Watch,
 
+    /// TODO
+    #[structopt(name = "daemon")]
+    Daemon,
+
+    /// TODO remove
+    #[structopt(name = "ping")]
+    Ping(Ping),
+
     /// Upgrade Lorri
     #[structopt(name = "self-upgrade", alias = "self-update")]
     Upgrade(UpgradeTo),
+}
+
+// TODO
+#[derive(StructOpt, Debug)]
+pub struct Ping {
+    // TODO
+    #[structopt(parse(from_os_str))]
+    pub nix_file: PathBuf,
 }
 
 /// A stub struct to represent how what we want to upgrade to.
