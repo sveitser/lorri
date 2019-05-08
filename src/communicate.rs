@@ -157,6 +157,7 @@ pub enum NoMessage {}
 // pub struct DaemonEvent {}
 // pub struct DaemonStatus {}
 
+// TODO: rename to listener
 pub mod daemon {
     use super::*;
     use std::os::unix::net::{UnixListener, UnixStream};
@@ -167,6 +168,7 @@ pub mod daemon {
     #[derive(Debug, Serialize, Deserialize)]
     pub struct ConnectionAccepted();
 
+    // TODO: rename to Listener
     /// Server-side part of a socket transmission,
     /// listening for incoming messages.
     pub struct Daemon {
