@@ -1,7 +1,7 @@
 //! Run a BuildLoop for `shell.nix`, watching for input file changes.
 //! Can be used together with `direnv`.
-use crate::ops::{ok, OpResult};
 use crate::build_loop::BuildLoop;
+use crate::ops::{ok, OpResult};
 use crate::project::Project;
 use crate::roots::Roots;
 use std::sync::mpsc::channel;

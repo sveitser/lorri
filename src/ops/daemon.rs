@@ -1,23 +1,22 @@
 //! Run a BuildLoop for `shell.nix`, watching for input file changes.
 //! Can be used together with `direnv`.
-use crate::ops::{ok, OpResult};
 use crate::build_loop::{self, BuildLoop};
+use crate::ops::{ok, OpResult};
 use crate::project::Project;
 use crate::roots::Roots;
-use std::sync::{mpsc, Mutex};
 use std::collections::HashMap;
-use std::thread;
 use std::path::PathBuf;
+use std::sync::{mpsc, Mutex};
+use std::thread;
 
 use std::path::Path;
 
-use crate::communicate::{daemon};
+use crate::communicate::daemon;
 use crate::communicate::{CommunicationType, NoMessage, Ping, ReadError, ReadWriter};
-
 
 /// Instructs the daemon to start a build
 struct StartBuild {
-    nix_file: PathBuf
+    nix_file: PathBuf,
 }
 
 /// See the documentation for lorri::cli::Command::Shell for more
@@ -32,20 +31,20 @@ pub fn main() -> OpResult {
     let (tx, rx) = mpsc::channel();
 
     let _accept_loop_handle = thread::spawn(move || loop {
-            let tx2 = tx.clone();
-            let _handle =
-                listener.accept(|unix_stream, comm_type| match comm_type {
-                    CommunicationType::Ping => ping(ReadWriter::new(unix_stream), tx2),
-                })
-                // TODO
-                .unwrap();
-        });
+        let tx2 = tx.clone();
+        let _handle = listener
+            .accept(|unix_stream, comm_type| match comm_type {
+                CommunicationType::Ping => ping(ReadWriter::new(unix_stream), tx2),
+            })
+            // TODO
+            .unwrap();
+    });
 
-    let _start_build_loop_handle = thread::spawn(||
+    let _start_build_loop_handle = thread::spawn(|| {
         for start_build in rx {
             daemon.start_build(start_build.nix_file)
         }
-    );
+    });
 
     for msg in daemon.build_events_rx {
         println!("{:#?}", msg);
@@ -65,7 +64,6 @@ struct Daemon {
 }
 
 impl Daemon {
-
     pub fn new() -> Daemon {
         let (tx, rx) = mpsc::channel();
         Daemon {
@@ -92,9 +90,7 @@ impl Daemon {
         };
         let _ = self.handlers.insert(nix_file, build_thread);
     }
-
 }
-
 
 /// Handle the ping
 // the ReadWriter here has to be the inverse of the `Client.ping()`, which is `ReadWriter<!, Ping>`
@@ -105,7 +101,11 @@ fn ping(rw: ReadWriter<Ping, NoMessage>, build_chan: mpsc::Sender<StartBuild>) {
         Err(e) => eprintln!("didn’t receive a ping!! {:?}", e),
         Ok(p) => {
             eprintln!("pinged with {}", p.nix_file.display());
-            build_chan.send(StartBuild { nix_file: p.nix_file }).expect("StartBuild channel closed")
+            build_chan
+                .send(StartBuild {
+                    nix_file: p.nix_file,
+                })
+                .expect("StartBuild channel closed")
         }
     }
 }
