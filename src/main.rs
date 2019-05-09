@@ -30,10 +30,10 @@ fn main() {
 
         (Command::Watch, Ok(project)) => watch::main(&project),
 
-        (Command::Daemon, Ok(project)) => daemon::main(),
+        (Command::Daemon, _) => daemon::main(),
 
         // TODO: remove
-        (Command::Ping(p), Ok(project)) => ping::main(p.nix_file),
+        (Command::Ping(p), _) => ping::main(p.nix_file),
 
         (Command::Upgrade(args), _) => upgrade::main(args),
 
