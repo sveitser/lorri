@@ -2,6 +2,9 @@
 
 mod version;
 
+use crate::communicate::client;
+use crate::communicate::Ping;
+use std::path::Path;
 use self::version::{DirenvVersion, MIN_DIRENV_VERSION};
 use crate::ops::{ok, ok_msg, ExitError, OpResult};
 use crate::project::Project;
@@ -14,6 +17,17 @@ pub fn main(project: &Project) -> OpResult {
 
     let mut shell_root = project.gc_root_path().unwrap();
     shell_root.push("build-0"); // !!!
+
+    if let Ok(client) =  client::ping(None)
+        .connect(Path::new("/tmp/lorri-socket")) {
+
+            client.write(&Ping { nix_file: project.expression().clone() })
+                .unwrap();
+
+        } else {
+            eprintln!("Uh oh, your lorri daemon is not running.");
+        }
+
 
     if !shell_root.exists() {
         return ExitError::errmsg("Please run 'lorri watch' before using direnv integration.");
